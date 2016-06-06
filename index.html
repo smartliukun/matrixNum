@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <!--<meta name="viewport" content="user-scalable=yes,initial-scale=1.0,maximum-scale=5.0,minimun-scale=1.0">-->
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no"/>
+    <title>index</title>
+    <script src="js/mui.min.js"></script>
+    <script src="js/math.js"></script>
+    <script type="text/javascript" src="js/storage.js" ></script>
+    <script type="text/javascript" async="async" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+     <script src="js/lrz.all.bundle.js"></script>
+    <link href="css/mui.min.css" rel="stylesheet"/>
+   
+    <script type="text/javascript" charset="utf-8"> 
+		var mPre="mDiv_";
+		var mNumPre="m_"; 
+		var prettyPre="p_";
+		var prettyListId="colsList";
+		//全局编辑的矩阵数组
+		var iMatrixArr = StorageDao.get(MATRICS);
+		var configPrec = StorageDao.get(CONFIG_PRECISION);
+		var configMin = StorageDao.get(CONFIG_RAND_MIN);
+		var configMax = StorageDao.get(CONFIG_RAND_MAX);
+	
+		//获取当前编辑矩阵放在矩阵格子中
+		var iMatrixObj = new Object();
+		iMatrixObj.matrix =  iMatrixArr[0].matrix.clone();
+		iMatrixObj.name = iMatrixArr[0].name;
+		//矩阵 对象格式
+
+		var bRowSize=0;
+		var isAxbModel=false;
+		var solve_A=null;
+		var solve_b=null;
+		
+		
+		
+		//矩阵回收站
+		var iMatrixRecArr=new Array();
+		
+		function getDivIndex(i,j)
+		{
+			return mPre+"i="+i+"j="+j;
+		}		
+		
+		function getInputIndex(i,j)
+		{
+			return mNumPre + "i="+i+"j="+j;
+		}
+		
+		function getRowColFromId(idStr)
+		{
+			var ij=idStr.substring(mNumPre.length,idStr.length);			
+			var iStr=ij.substring("i=".length,ij.indexOf("j="));
+			var jStr=ij.substring(ij.indexOf("j=")+"j=".length,ij.length);	
+			return new Array(parseInt(iStr),parseInt(jStr));
+		}		
+		
+      	mui.init();
+      	
+      	mui.plusReady(function(){
+      		
+      		plus.screen.lockOrientation("portrait");
+      		//初始化输入div
+      		initDiv();      		 
+      		//初始化矩阵	
+      		initMatrix();
+      		
+      		initVarExpression(iMatrixArr);
+      		//初始化右侧菜单栏
+      		initNavDragging();
+			
+		});
+		
+		/**
+		 * 初始化矩阵的输入格子
+		 */
+		function initDiv(){
+			var parentDiv=document.getElementById("parentDiv");      		
+      		 parentDiv.style.height=parentDiv.clientWidth+"px";
+      		
+      		 var mDiv=document.getElementsByClassName("mDiv")[0];      		
+      		 
+      		 for(var i=0;i<10;i++)
+	      		 for(var j=0;j<10;j++)
+	      		 {
+	      		 	var cloneDiv=mDiv.cloneNode(true);	 
+	      		 	cloneDiv.setAttribute("id",getDivIndex(i,j));
+	      		 	cloneDiv.style.display="";
+	      		 	cloneDiv.children[0].setAttribute("id",getInputIndex(i,j));   
+	      		 	cloneDiv.children[0].style.display="none";
+	      		 	parentDiv.appendChild(cloneDiv);
+	      		 }
+		}
+		/**
+		 * 隐藏所有的输入格子
+		 */
+		function hideInputDiv()
+		{			
+			for(var i=0;i<10;i++)
+	      		 for(var j=0;j<10;j++)	      	
+	      		 	document.getElementById(getInputIndex(i,j)).style.display="none";	      		 
+		}
+		
+		/**
+		 * 在矩阵格子中显示输入的矩阵
+		 * @param {math.matrix} matrix
+		 */
+		function showMatrixValue(matrix)
+		{
+			hideInputDiv();
+			
+			matrix.forEach(function (value, index, matrix) {
+			
+			  var mDiv=document.getElementById(getDivIndex(index[0],index[1]));		
+			  var inputDom=document.getElementById(getInputIndex(index[0],index[1]));			
+			  inputDom.value =value;			
+			  inputDom.style.display="";			   
+			});
+		}
+		/**
+		 * 显示矩阵
+		 */
+		function initMatrix()
+		{
+			showMatrixValue(iMatrixObj.matrix);
+		}
+		
+		/**
+		 * 重新显示矩阵格子的行列
+		 */
+		function resizeMatrix () {
+						
+			var rowSize=parseInt(document.getElementById("rowInput").value);
+			var cosSize=parseInt(document.getElementById("colInput").value);
+			//console.log("rowSize="+rowSize+",cosSize"+cosSize);
+			iMatrixObj.matrix.resize([rowSize,cosSize]);
+			showMatrixValue(iMatrixObj.matrix);
+				
+			
+		}
+		/**
+		 * 更新行列数的输入框的数字
+		 * @param {Object} sizeArr
+		 */
+		function updateSizeInput(sizeArr){
+			
+			document.getElementById("rowInput").value=sizeArr[0];
+			document.getElementById("colInput").value=sizeArr[1];
+			
+		}
+		/**
+		 * input 控件失去输入焦点时，更新编辑的矩阵对象，和矩阵格子
+		 * @param {domObject} inputDom
+		 */
+		function updateMatrix (inputDom) {
+			var idStr=inputDom.getAttribute("id");			
+			var index=getRowColFromId(idStr);
+			iMatrixObj.matrix.subset(math.index(index[0],index[1]),math.eval(inputDom.value)); 
+			inputDom.value=math.eval(inputDom.value);
+		}
+		/**
+		 * 单位矩阵
+		 */
+		function idMatrix(){
+			if(!checkSquare(iMatrixObj.matrix))
+				return;
+				
+			var rows=iMatrixObj.matrix.size()[0];
+			iMatrixObj.matrix = math.eye(rows,rows);
+			showMatrixValue(iMatrixObj.matrix);
+		}
+		/**
+		 * 转置矩阵
+		 */
+		function tpMatrix(){
+		
+			iMatrixObj.matrix=math.transpose(iMatrixObj.matrix);			
+			showMatrixValue(iMatrixObj.matrix);
+			
+			var rowInput=document.getElementById("rowInput");
+			var colInput=document.getElementById("colInput");
+			
+			if(rowInput==colInput)
+				return;
+			
+			var midValue=rowInput.value;			
+			rowInput.value=colInput.value;
+			colInput.value=midValue;
+		}
+		/**
+		 * 判断矩阵是否行列相等
+		 * @param {math.matrix} matrix
+		 */
+		function checkSquare(matrix)
+		{
+			var rows=matrix.size()[0];
+			var cols=matrix.size()[1];
+			if(rows != cols){
+				mui.toast( "只能对“方阵”执行该项操作。" )
+				return false;
+			}				
+			else
+				return true;
+		}
+		/**
+		 * 判断行列式是否为零
+		 * @param {math.matrix} matrix
+		 */
+		function checkDetNotNull(matrix) {
+			if(math.det(matrix)==0)
+			{
+				mui.toast( "该矩阵行列式为零。" )
+				return false;
+			}
+			else
+				return true;
+		}
+		
+		/**
+		 * 求矩阵逆
+		 */
+		function inMatrix () {
+			if(!checkSquare(iMatrixObj.matrix))
+				return;
+			
+			if(!checkDetNotNull(iMatrixObj.matrix))
+				return;
+			
+		
+			showMatrixValue(math.inv(iMatrixObj.matrix));
+		}
+		/**
+		 * 求矩阵行列式
+		 */
+		function detMatrix () {
+			mui.toast( "该矩阵行列式为:"+ math.det(iMatrixObj.matrix));
+		}
+		/**
+		 * 随机输入矩阵格子
+		 */
+		function randMatrix() {
+			
+			iMatrixObj.matrix.forEach(function (value, index, matrix) {
+			//console.log('value:', math.randomInt([-1000, 1000]), 'index:', math.index(index[0],index[1]));
+			
+			matrix.subset(math.index(index[0],index[1]),Math.round(Math.random()*100)-50); 			   
+			});
+			
+			showMatrixValue(iMatrixObj.matrix);
+		}
+			
+		function openPlot () {
+			var url=null;
+			if(check3D(iMatrixObj.matrix))
+			{
+				mui.toast( "该矩阵有3维向量,进入3维图像");
+				url="plot3d.html";
+			}
+			else if(check2D(iMatrixObj.matrix))
+			{
+				mui.toast( "该矩阵有2维向量,进入2维图像");
+				url="plot2d.html";
+			}
+			else if(check1D(iMatrixObj.matrix))	
+			{
+				mui.toast( "该矩阵只有一维向量！");
+				return;
+			}
+			else if(checkMultipleDim(iMatrixObj.matrix))
+			{
+				mui.toast( "请使用平行坐标观察高维空间！");
+				return;
+			}
+			
+			
+			
+			//console.log("JSON.stringify"+JSON.stringify(iMatrix));
+			mui.openWindow({
+			    url: url, 
+			    id:'info',
+			    extras:{
+			        postMatrix:JSON.stringify(iMatrixObj.matrix),
+			        configPrec:configPrec
+			    }
+		  	});
+		}
+		
+		function openMutilDim()
+		{
+			var url='high-dimension.html';
+			mui.openWindow({
+			    url: url, 
+			    id:'info',
+			    extras:{
+			        postMatrix:JSON.stringify(iMatrixObj.matrix),
+			        configPrec:configPrec
+			    }
+		  	});
+		}
+		
+		
+		function openVectorSelect(){
+			
+			if(!isAxbModel)
+				isAxbModel= true;
+				
+			if(solve_A==null)
+					selectConfirm('请在矩阵列表中选择Ax=b方程的A');				
+			else if(solve_b==null)
+					selectConfirm('请在矩阵列表中选择Ax=b方程的b');
+			else
+				openDetail(solve_A,solve_b);
+			
+		}
+		
+		function selectConfirm(str)
+		{
+			var btnArray = ['取消选择', '继续选择'];
+			mui.confirm(str, '准备Ax=b', btnArray, function(e) {
+					if (e.index == 1) {
+						isAxbModel=true;
+					} else {
+						mui.toast("取消选择");
+						isAxbModel=false;	
+						solve_A=null;
+						solve_b=null;
+					}
+				})
+		}
+		
+		function openDetail(matrixA,matrixb)
+		{
+			var url='detail.html';
+			
+			mui.openWindow({
+			    url: url, 
+			    id:'detail',
+			    extras:{
+			        postMatrix:JSON.stringify(matrixA),
+			        bMatrix:JSON.stringify(matrixb),
+			        configPrec:configPrec			    
+			    }
+		  	});
+		  	
+		  	
+		}
+		
+		function check1D(matrixObj)
+		{
+			var rows=matrixObj.size()[0];
+			var cols=matrixObj.size()[1];
+			
+			if(rows==1 && cols==1)
+				return true;
+			
+			return false;
+		}
+		
+		
+		function check2D (matrixObj) {
+			var rows=matrixObj.size()[0];
+			var cols=matrixObj.size()[1];
+			
+			if(rows==2 || cols==2)
+				return true;
+			
+			
+			return false;
+		}
+		
+		function check3D (matrixObj) {
+			var rows=matrixObj.size()[0];
+			var cols=matrixObj.size()[1];
+			
+			if(rows==3 || cols==3)
+				return true;
+			
+			return false;
+		}
+		
+		function checkMultipleDim(matrixObj)
+		{
+			var rows=matrixObj.size()[0];
+			var cols=matrixObj.size()[1];
+			
+			if(rows>3 || cols>3)
+				return true;
+			
+			return false;
+		}
+		
+		function closeNav () {
+			mui('.mui-off-canvas-wrap').offCanvas('close');
+		}
+		function openNav()
+		{
+			mui('.mui-off-canvas-wrap').offCanvas('show');
+		}
+		
+	function pushMatrixVar(){
+
+		var nextIndex=StorageDao.getNextSequence();		
+		
+		var iObj=new Object();	
+		
+		iObj.name="A"+nextIndex;	
+			
+		iObj.matrix=iMatrixObj.matrix.clone();
+		
+		iMatrixArr.push(iObj);
+		
+		StorageDao.save(MATRICS,iMatrixArr);		
+		
+		initVarExpression(iMatrixArr);
+		
+		
+		
+	}
+	function updateMatrixVar(){
+
+		var iObj=new Object();		
+		
+		if(document.getElementsByClassName('focusPrettyLi').length==0)
+		{
+			mui.toast("请先选择矩阵");
+			return;
+		}
+		else
+			iObj.name=iMatrixObj.name;
+			
+		iObj.matrix=iMatrixObj.matrix.clone(); 
+		
+		for(var i=0;i<iMatrixArr.length;i++)
+			if(iMatrixArr[i].name==iObj.name)
+				iMatrixArr[i] = iObj;
+		
+		
+		initVarExpression(iMatrixArr);		
+	}
+	
+	function initVarExpression(iMatrixObjArr)
+	{
+		parenthesis = 'keep',
+		implicit = 'hide';
+		
+		prettyList = document.getElementById(prettyListId);
+		prettyList.innerHTML='';
+
+		var nameArr=new Array();
+		for(var i=0;i<iMatrixObjArr.length;i++)
+			nameArr.push(iMatrixObjArr[i].name);
+			
+		MathJax.Hub.Config({			
+		displayAlign: "left",
+		displayIndent: "1em"		
+		});
+			
+		for(var i=0;i<iMatrixObjArr.length;i++)
+		{
+			var iObj=iMatrixObjArr[i];
+			
+			var prefix="{"+iObj.name+"}=";
+			
+			var exprValue = math.format(iObj.matrix,configPrec);	
+			
+			var texStr=math.parse(exprValue).toTex({parenthesis: parenthesis});
+			
+			var tempTeXStr=prefix+texStr;			
+				
+			prettyList.innerHTML += '<li class="mui-table-view-cell  mui-left prettyLi" style="padding:0px;" onclick="focusMatrix(\''+iObj.name+'\',this)">'
+									+'<div>'+'$$' + tempTeXStr + '$$'+'</div></li>';
+			
+		}
+		
+		
+		MathJax.Hub.Queue(['Typeset', MathJax.Hub]);
+	}
+	
+	function reloadPrettyDiv(parentId,varNameArr)
+	{
+		var parentDiv=document.getElementById(parentId);
+		parentDiv.innerHTML="";
+		var htmlStr="";
+		for(var i=0;i<varNameArr.length;i++)
+		{
+			htmlStr+="<div id='"+ prettyPre + varNameArr[i]+"' class='prettyExp' onclick='focusMatrix(\""+varNameArr[i]+"\")'></div>";
+		}
+		console.log(htmlStr);
+		parentDiv.innerHTML=htmlStr;
+	}
+
+	function initNavDragging()
+	{
+		var mainWrapDom=document.getElementById("mainWrap");
+		mainWrapDom.addEventListener("swipeleft",function(){
+     		openNav();
+		});
+		mainWrapDom.addEventListener("swiperight",function(){
+     		closeNav();
+		});
+	}
+	
+	function getMatrixObjByName(matrixName)
+	{
+		for(var i=0;i<iMatrixArr.length;i++)
+				if(matrixName==iMatrixArr[i].name)
+					return iMatrixArr[i];
+				
+		return alert('select error');
+	}
+	
+	function focusMatrix(matrixName,liDom)
+	{	
+		//如果是选 Ax=b 模式
+		
+		if(isAxbModel)
+		{
+			var flag=false;
+			
+			if(solve_A==null)
+			{
+				solve_A=getMatrixObjByName(matrixName).matrix;
+				mui.toast("A选择成功");
+				
+			}				
+			else if(solve_b==null)
+			{
+				solve_b=getMatrixObjByName(matrixName).matrix;
+				
+				var a_rows= solve_A.size()[0];
+				
+				if(solve_b.size()[0]==a_rows && solve_b.size()[1]==1)
+				{
+						flag=true;
+						mui.toast("b选择成功");
+				}
+				else
+				{
+					solve_b=null;
+					selectConfirm('选取的b向量格式不对，必须是'+a_rows+'行'+1+'列');
+				}
+					
+			}
+			
+			if(solve_A!=null && solve_b!=null)
+			{
+				openDetail(solve_A,solve_b);
+				//打开详情后，清除现有的Ax=b信息，为下一次选择做准备
+				solve_A=null;
+				solve_b=null;
+				isAxbModel=false;
+			}			
+			return;
+		}
+		
+		
+		liDom.classList.add("focusPrettyLi");
+		
+		mui('.focusPrettyLi').each(function(){	
+			if(this!=liDom)
+			this.classList.remove("focusPrettyLi");
+		});
+		
+		
+		
+		for(var i=0;i<iMatrixArr.length;i++)
+		{
+			if(matrixName==iMatrixArr[i].name)
+			{
+				var matrix=iMatrixArr[i].matrix;
+				iMatrixObj.matrix = matrix.clone(); 
+				iMatrixObj.name=iMatrixArr[i].name;
+				
+				updateSizeInput(matrix.size());
+				showMatrixValue(iMatrixObj.matrix);	
+				return;	
+			}
+			
+		}
+	}
+	
+	function openCalc()
+	{
+		//console.log("JSON.stringify"+JSON.stringify(iMatrix));
+		url="calc.html";
+		console.log(JSON.stringify(iMatrixArr));
+		mui.openWindow({
+		    url: url, 
+		    id:'info',
+		    extras:{
+		        postMatrixArr:JSON.stringify(iMatrixArr),
+		        configPrec:configPrec
+		    }
+	  	});
+	}
+	
+	//打开设置页面
+	function openSetting()
+	{
+		url="setting.html";
+		mui.openWindow({
+		    url: url, 
+		    id:'setting'		   
+	  	});
+	}
+	
+	function openCamera()
+	{
+		var cmr = plus.camera.getCamera();
+		var res = cmr.supportedImageResolutions[0];
+		var fmt = cmr.supportedImageFormats[0];		
+	
+		cmr.captureImage( function( path ){
+				alert( "Capture image success: " + path );
+			 	plus.io.resolveLocalFileSystemURL( path, function ( entry ) {    
+        		  
+        				//把拍照的目录路径，变成本地url路径，例如file:///........之类的。
+	                    var localUrl = entry.toLocalURL();
+	                    console.log(localUrl);
+	                    lrz(localUrl,{quality:0.3}) .then(function (rst) {
+				            // 处理成功会执行
+				            console.log(rst.fileLen);
+				            uploadImgAndOcr(rst.formData);
+				        })
+	                    
+	                    
+	                    //uploadImgAndOcr(localUrl);
+	                  	//appendFile(localurl);
+                   
+                }); 
+				
+			},
+			function( error ) {
+				alert( "Capture image failed: " + error.message );
+			},
+			{resolution:res,format:fmt}
+		);
+	}
+	
+	function uploadImgAndOcr(data)
+	{
+		plus.nativeUI.showWaiting( "解析图片中..." );
+		data.append("apikey", "7e4097b03788957");
+		data.append("language", "eng");
+		data.append("isOverlayRequired", "false");
+		
+		
+		var xhr = new XMLHttpRequest();
+		xhr.withCredentials = true;
+		
+		xhr.addEventListener("readystatechange", function () {
+			plus.nativeUI.closeWaiting();
+		  if (this.readyState === 4) {
+		    console.log(this.responseText);
+		    alert(this.responseText);
+		  }
+		});
+		
+		xhr.open("POST", "https://api.ocr.space/parse/image");
+		xhr.setRequestHeader("cache-control", "no-cache");
+		
+		
+		xhr.send(data);
+//		plus.nativeUI.showWaiting( "解析图片中..." )
+//		var task = plus.uploader.createUpload( "https://api.ocr.space/parse/image", 
+//		{ method:"POST",blocksize:204800,priority:100 },
+//			function ( upload, status ) {
+//				plus.nativeUI.closeWaiting();
+//				if ( status == 200 ) { 
+//					alert(upload.responseText);
+//				} else {
+//					alert( "Upload failed: " + status );
+//				}
+//			}
+//		);
+//		task.addFile( imgFile, {key:"file"} );
+//		task.setRequestHeader("cache-control", "no-cache");
+//		task.addData( "apikey", "7e4097b03788957" );
+//		task.addData( "language", "eng" );
+//		task.addData( "isOverlayRequired", "false" );
+//		
+//		//task.addEventListener( "statechanged", onStateChanged, false );
+//		task.start();
+	}
+	
+	function popMatrixVar()
+	{
+		var popName=null;
+		if(iMatrixArr.length==0)
+			return alert("已经没有可删除的对象了");
+		else if(document.getElementsByClassName('focusPrettyLi').length==0)	
+			return alert("请先选中列表中的矩阵");
+		else
+			popName = iMatrixObj.name;
+		
+		var newMatrixArr = new Array();
+		
+		iMatrixArr.forEach(function(matrixObj, i){
+			
+			if(matrixObj.name != popName)
+				newMatrixArr.push(matrixObj);
+			
+		});
+		
+		iMatrixArr= newMatrixArr;
+		
+      	initVarExpression(iMatrixArr);
+	}
+	
+    </script>
+    <style type="text/css">
+    	.mDiv {
+    		float:left;
+    		width:10%;
+    		height:10% ;
+    		border: dashed #6641E2 0px;
+    	}
+    	.mDivHide {
+    		float:left;
+    		width:20%;
+    		height:20% ;
+    		margin: 1px;
+    		border: 0px #FFFFFF;
+    	}
+    	.mDrag {
+    		position:absolute;
+    		left: 0px;
+    		top:  0px;
+    		width: 30px;
+    		height: 30px;
+    		background-color: #999999;
+    	}
+    	
+    	.mStartDrag {
+    		position:absolute;
+    		width: 30px;
+    		height: 30px;
+    		background-color:#007AFF;
+    	}
+    	.m-input {
+    		width:100% !important;
+    		height:100% !important; 
+    		text-align: center;
+    		padding-left: 0px !important;
+    		padding-right: 0px !important;  
+    		-webkit-box-shadow: 0 1px 6px #ccc;
+    		box-shadow: 0 1px 6px #ccc;  	
+    		margin: 0px;	
+    	}
+    	.num-label {
+    		width:auto !important;
+    		margin: 0px !important;
+    		padding:10px 5px !important;	
+	 	}
+ 		.prettyExp{
+		display: inline;
+		
+    	}
+    	.prettyfocus
+    	{
+    		background-color: #AAAAAA;
+    	}
+    	.focusPrettyLi
+    	{
+    		background-color:gainsboro;
+    	}
+    </style>
+</head>
+<body>	
+    <div class="mui-off-canvas-wrap mui-slide-in" id="mainWrap">
+	  <!-- 菜单容器 -->
+	  <aside class="mui-off-canvas-right" style="width:40%">
+	    <div class="mui-scroll-wrapper">
+	      <div class="mui-scroll" style="transform: translate3d(0px, 0px, 0px) translateZ(0px);">
+	        <!-- 菜单具体展示内容 -->
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-danger mui-btn-block" onclick="closeNav()">关闭菜单</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="idMatrix();closeNav()">单位矩阵</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="tpMatrix();closeNav()">转置矩阵T</button></p>	        
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="randMatrix();closeNav()">随机输入</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="openVectorSelect();closeNav()">Ax=b</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="openPlot();closeNav()">图形显示</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="openMutilDim();closeNav()">平行坐标</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block mui-btn-royal" onclick="openCalc();closeNav()">计算器</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="openSetting();closeNav()">设置</button></p>
+	        <!--<p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="inMatrix();closeNav()">求逆invers</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="detMatrix();closeNav()">行列式det</button></p>
+	      -->
+	      </div>
+	    </div>
+	  </aside>
+	  <!-- 主页面容器 -->
+	  <div class="mui-inner-wrap" >
+	    <!-- 主页面标题 -->
+	    <header class="mui-bar mui-bar-nav" style="-webkit-box-shadow: 0 1px 6px #ccc;box-shadow: 0 1px 6px #ccc;">
+	      <!--<a class="mui-icon mui-action-menu mui-icon-bars mui-pull-left"></a>-->
+	      <h1 class="mui-title">MatrixNum</h1>
+	      <span  class="mui-icon mui-icon-camera" onclick="openCamera()"></span>
+	      <button  class="mui-btn mui-btn-blue mui-btn-link mui-pull-right" onclick="openNav()">menu</button>
+	    </header>
+	    <div id="offCanvasContentScroll" class="mui-content mui-scroll-wrapper" style="overflow:visible">
+	      <div class="mui-scroll" >
+	        <!-- 主界面具体展示内容 -->
+	        
+	        <div class="mui-input-row">		
+				<div style="width: 50%;float: left;">
+					<label class="num-label">rows</label>
+					<div class="mui-numbox" data-numbox-min='1' data-numbox-max='10'> 	  
+					  <button  class="mui-btn mui-numbox-btn-minus" type="button">-</button>
+					  <input id="rowInput" class="mui-numbox-input" type="number" value="2" onchange="resizeMatrix()"/>	
+					  <button  class="mui-btn mui-numbox-btn-plus" type="button">+</button>
+					</div>
+				</div>
+				<div style="width: 50%;float: left;">
+					<label  class="num-label">cols</label>
+					<div class="mui-numbox" data-numbox-min='1' data-numbox-max='10'> 
+					  <button  class="mui-btn mui-numbox-btn-minus" type="button">-</button>
+					  <input id="colInput" class="mui-numbox-input" type="number" value="2" onchange="resizeMatrix()"/>	
+					  <button  class="mui-btn mui-numbox-btn-plus"  type="button">+</button>
+					</div>
+				</div>
+			</div>			
+			<!--矩阵格子div-->
+			<div class="mui-content" >
+				<div id="parentDiv" style="width:100%;float: left;">
+					<div class="mDiv" style="display:none;">
+						<input type="number" min="1" max="999" class="m-input" placeholder="0" onchange="updateMatrix(this)"/>
+					</div>
+				</div>
+						
+				<div style="width:98%;height:140px !important;overflow: scroll !important;-webkit-box-shadow: 0 1px 6px #ccc;box-shadow: 0 1px 6px #ccc;">
+					<ul class="mui-table-view" id="colsList" >
+					 	
+					</ul>
+				</div>
+				
+				<p style="margin: 10px 15px;">
+					<button type="button" class="mui-btn mui-btn-grey" style="width:32%" onclick="pushMatrixVar()">new</button>
+					<button type="button" class="mui-btn mui-btn-grey" style="width:32%" onclick="updateMatrixVar()">update</button>
+					<button type="button" class="mui-btn mui-btn-grey" style="width:32%" onclick="popMatrixVar()">delete</button>
+				</p>
+			</div>
+	      </div>
+	    </div>  
+	  </div>
+	</div>
+</body>
+</html>

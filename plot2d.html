@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+    <title></title>
+    <script src="js/mui.min.js"></script>
+    <script src="js/math.js"></script>
+ 	<script type="text/javascript" async="async" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+	<script src="js/d3.min.js"></script>
+	<script src="js/function-plot.js"></script>
+    <link href="css/mui.min.css" rel="stylesheet"/>
+    <script type="text/javascript" charset="UTF-8">
+	//当前页面处理矩阵对象
+	/**
+	 * matrix 矩阵对象
+	 * plotVectors 矩阵的各个向量
+	 * isColVector 是否是列向量
+	 */
+	var matrixCom={};
+	var configPrec = null;
+	var prettyListId= "colsList";
+    mui.init();
+
+	mui.plusReady(function() {
+		var self = plus.webview.currentWebview();
+	
+		var matrixObj = JSON.parse(self.postMatrix, math.json.reviver);	
+		configPrec = self.configPrec;
+		
+		var rows = matrixObj.size()[0];
+		var cols = matrixObj.size()[1];
+	
+		
+		var isColVector=false;
+		if (rows == 2)
+			plotVectors = getVectorArr(matrixObj, isColVector=true);
+		else if (cols == 2)
+			plotVectors = getVectorArr(matrixObj, isColVector=false);
+			
+		matrixCom.matrix=matrixObj;
+		matrixCom.isColVector=isColVector;
+		matrixCom.plotVectors=plotVectors;
+		
+		initPlot(plotVectors);
+		initExperssion(matrixObj,isColVector);
+		
+	});
+
+
+
+
+
+/**
+ * 
+ * @param {Object} matrixObj
+ * @param {Object} isColVector
+ * 
+ * var b = [[0, 1], [2, 3]];
+ * math.subset(b, math.index(1, [0, 1]));        // Array, [2, 3]
+ * math.subset(b, math.index([0, 1], 0));        // Matrix, [[0], [2]]
+ */
+function getVectorArr(matrixObj, isColVector) {
+
+	var rows = matrixObj.size()[0];
+	var cols = matrixObj.size()[1];
+	var vectors = new Array();
+	if (isColVector) {
+		for (var i = 0; i < cols; i++)
+			vectors.push(matrixToArray(math.subset(matrixObj, math.index([0, rows - 1], i))));
+
+	} else {
+		for (var i = 0; i < rows; i++)
+			vectors.push(matrixToArray(math.subset(matrixObj, math.index(i, [0, cols - 1]))));
+	}
+
+	return vectors;
+}
+
+function matrixToArray(matrixObj) {
+	var arr = new Array();
+
+	matrixObj.forEach(function(value, index, matrix) {
+		arr.push(value);
+	});
+
+	return arr;
+}
+
+function initPlot(inputVectors) {
+
+	var plotPlane=document.getElementById("plotPlane");
+	plotPlane.innerHTML="";
+	
+	var vectors = new Array();
+	
+	var maxAxis=1;
+	
+	for (var i = 0; i < inputVectors.length; i++) {
+		var arr = inputVectors[i];
+		maxAxis=math.max(maxAxis,Math.abs(arr[0]),Math.abs(arr[1]));
+		var vectorObj = {
+			vector: arr,
+			offset: [0, 0],
+			graphType: 'polyline',
+			fnType: 'vector',
+			title:'aa'
+		};
+
+		vectors.push(vectorObj);
+	}
+	
+	
+	
+	console.log(vectors);
+	var instance = functionPlot({
+		target: '#plotPlane',
+		width: 300,
+		height: 400,
+		xAxis: {domain: [-maxAxis*1.1, maxAxis*1.1]},
+		data: vectors
+	})
+
+	instance.on('before:mousemove', function(coordinates) {
+		var draggable = instance.draggable.node()
+		var target = instance.root.node().parentNode
+
+		// find the ancestors of target which scale their content
+		// for now assume that it's just the first ancestor of target
+		var container = target.parentNode
+		if (container.style.zoom) {
+			var scale = parseFloat(container.style.zoom)
+			var scaledWidth = instance.meta.width * scale
+			var scaledWidthDiff = scaledWidth - instance.meta.width
+			var mouse = d3.mouse(draggable)
+
+			// varies depending on the scale factor, it's not linear
+			var magicNumber = 120
+
+			var nx = mouse[0] - magicNumber
+			nx -= (nx / scaledWidth) * scaledWidthDiff
+			coordinates.x = instance.meta.xScale.invert(nx)
+		}
+	})
+}
+
+
+//
+//function initExperssion(matrixObj,isColVector) {
+//
+//	if(pretty==null)
+//		pretty = document.getElementById('pretty');
+//	
+//	parenthesis = 'keep',
+//	implicit = 'hide';
+//
+//	// initialize with an example expression
+//	//exprValue = 'sqrt(75 / 3) + det([[-1, 2], [3, 1]]) - sin(pi / 4)^2';
+//	var exprValue = 'A='+math.format(matrixObj,configPrec);	
+//	var texStr=math.parse(exprValue).toTex({parenthesis: parenthesis});
+//	pretty.innerHTML = '$$' + texStr + '$$';
+//	
+//	var rows = matrixObj.size()[0];
+//	var cols = matrixObj.size()[1];
+//	var vectorsLen=0;
+//	if(isColVector)
+//		vectorsLen=cols;
+//	else
+//		vectorsLen=rows;
+//		
+//	for(var i=0;i<10;i++)
+//		document.getElementById("pretty"+i).style.display="none";
+//		
+//	for(var i=0;i<vectorsLen;i++)
+//	{
+//		var vector=null;
+//		if(isColVector)
+//			vector=math.subset(matrixObj, math.index([0, rows-1], i));
+//		else
+//			vector=math.transpose(math.subset(matrixObj, math.index(i, [0, cols - 1])));
+//		
+//		var prefix='v=';
+//		if(isColVector)
+//			prefix='{v}_'+i+'=';
+//		else
+//			prefix='{v}_'+i+'^T=';
+//			
+//		var contents=math.format(vector,configPrec);
+//		var tempStr=math.parse(contents).toTex({parenthesis: parenthesis})
+//		var tempTeXStr=prefix+tempStr;
+//		//console.log(tempTeXStr);
+//		tempPretty = document.getElementById('pretty'+i);
+//		tempPretty.style.display="";
+//		tempPretty.innerHTML = '$$' + tempTeXStr + '$$';
+//	}
+//		
+//	//result.innerHTML = math.format(math.eval(expr.value));
+//
+//
+//  //console.log('LaTeX expression:', texStr);
+//
+//}
+
+function initPlotSpace(inputVectors) {
+	
+	var plotPlane=document.getElementById("plotPlane");
+	plotPlane.innerHTML="";
+	
+	var fnArr = new Array();
+	
+	var maxAxis=1;
+	
+	
+	for (var i = 0; i < inputVectors.length; i++) 
+		maxAxis=math.max(maxAxis,Math.abs(inputVectors[i][0]),Math.abs(inputVectors[i][1]));
+	
+
+			
+	for (var i = 0; i < inputVectors.length; i++) {
+		
+		var arr = inputVectors[i];
+		var slope=parseFloat(arr[1])/parseFloat(arr[0]);
+		var tempMaxAxis=Math.abs((1-slope)*maxAxis);
+		var bArr=new Array();
+		for (var tempi = 0; tempi < 3; tempi++)
+			bArr.push(tempMaxAxis-tempMaxAxis*tempi);
+		
+		
+		for(var j=0;j<bArr.length;j++){
+			var fnObj = {}
+			fnObj.fn=slope+'x+'+bArr[j];			
+			fnArr.push(fnObj);
+			
+		}
+		
+		
+		
+	}
+	
+	
+	var instance = functionPlot({
+		target: '#plotPlane',
+		width: 300,
+		height: 400,
+		disableZoom:true,
+		xAxis: {domain: [-maxAxis*1.1, maxAxis*1.1]},
+		data: fnArr
+	})
+
+	instance.on('before:mousemove', function(coordinates) {
+		var draggable = instance.draggable.node()
+		var target = instance.root.node().parentNode
+
+		// find the ancestors of target which scale their content
+		// for now assume that it's just the first ancestor of target
+		var container = target.parentNode
+		if (container.style.zoom) {
+			var scale = parseFloat(container.style.zoom)
+			var scaledWidth = instance.meta.width * scale
+			var scaledWidthDiff = scaledWidth - instance.meta.width
+			var mouse = d3.mouse(draggable)
+
+			// varies depending on the scale factor, it's not linear
+			var magicNumber = 120
+
+			var nx = mouse[0] - magicNumber
+			nx -= (nx / scaledWidth) * scaledWidthDiff
+			coordinates.x = instance.meta.xScale.invert(nx)
+		}
+	})
+	
+}
+
+function resetPlot(){	
+	
+	initPlot(matrixCom.plotVectors);
+}
+function showVec(isColVector){
+	
+	matrixCom.isColVector=isColVector;
+	var plotVectors = getVectorArr(matrixCom.matrix, matrixCom.isColVector);
+	
+	initPlot(plotVectors);
+	initExperssion(matrixCom.matrix,isColVector);
+	
+}
+function showSpace (isColVector) {
+	matrixCom.isColVector=isColVector;
+	var plotVectors = getVectorArr(matrixCom.matrix, matrixCom.isColVector);
+	initPlotSpace(plotVectors);
+	initExperssion(matrixCom.matrix,isColVector);
+	
+}
+
+function initExperssion(matrix,isColVector) {
+	
+	MathJax.Hub.Config({			
+		displayAlign: "left",
+		displayIndent: "1em"		
+		});
+			
+
+	parenthesis = 'keep',
+	implicit = 'hide';
+	prettyList = document.getElementById(prettyListId);
+	prettyList.innerHTML='';
+	var rows = matrix.size()[0];
+	var cols = matrix.size()[1];
+	var vectorsLen=0;
+	if(isColVector)
+		vectorsLen=cols;
+	else
+		vectorsLen=rows;
+		
+	for(var i=0;i<vectorsLen;i++)
+	{
+		var vector=null;
+		if(isColVector)
+			vector=math.transpose(math.subset(matrix, math.index(math.range(0, rows), i)));
+		else
+			vector=math.subset(matrix, math.index(i, math.range(0, cols) ));
+		
+		var prefix;
+		if(isColVector)
+			prefix='{v}_'+i+'^T=';
+		else
+			prefix='{v}_'+i+'=';
+			
+		var contents=math.format(vector,configPrec);
+		var tempStr=math.parse(contents).toTex({parenthesis: parenthesis})
+		var tempTeXStr=prefix+tempStr;
+		
+		prettyList.innerHTML += '<li class="mui-table-view-cell mui-checkbox mui-left" onclick="updateRender();">'
+								+'<input name="checkbox" type="checkbox" checked class="vCheckboxClass"><div>'+'$$' + tempTeXStr + '$$'+'</div></li>';
+	
+	}
+	
+	//console.log(prettyList.innerHTML);
+
+  	MathJax.Hub.Queue(['Typeset', MathJax.Hub]);
+
+}
+
+function updateRender()
+	{
+		var showIndexArr=new Array();
+		
+		mui('.vCheckboxClass').each(function(i){			
+			if(this.checked)
+				showIndexArr.push(i);
+		});
+		
+		//refreshRender(getVectorArr(matrixCom.matrix,isColVector,showIndexArr),'#high_dim');
+		
+		
+	}
+
+function openNav()
+{
+	mui('.mui-off-canvas-wrap').offCanvas('show');
+}
+function closeNav () {
+	mui('.mui-off-canvas-wrap').offCanvas('close');
+}
+</script>
+</head>
+<body>
+
+	<div class="mui-off-canvas-wrap mui-slide-in">
+	  <!-- 菜单容器 -->
+	  <aside class="mui-off-canvas-right" style="width:40%">
+	    <div class="mui-scroll-wrapper">
+	      <div class="mui-scroll" style="transform: translate3d(0px, 0px, 0px) translateZ(0px);">
+	        <!-- 菜单具体展示内容 -->
+	         <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-danger mui-btn-block" onclick="closeNav()">关闭菜单</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="resetPlot();closeNav();">图像重置</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showVec(true);closeNav();">列向量</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showVec(false);closeNav();">行向量</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showSpace(true);closeNav();">列空间</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showSpace(false);closeNav();">行空间</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showNullSpace();closeNav();">零空间</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showLeftSpace();closeNav();">左零空间</button></p>
+	      </div>
+	    </div>
+	  </aside>
+	  <!-- 主页面容器 -->
+	  <div class="mui-inner-wrap">
+	    <!-- 主页面标题 -->
+	    <header class="mui-bar mui-bar-nav" style="-webkit-box-shadow: 0 1px 6px #ccc;box-shadow: 0 1px 6px #ccc;">
+		    <a class="mui-action-back mui-icon mui-icon-left-nav mui-pull-left"></a>
+		    <h1 class="mui-title">2维图形映射</h1>
+		    <button id="editBtn" class="mui-btn mui-btn-blue mui-btn-link mui-pull-right" onclick="openNav()">更多</button>
+		</header>
+	    <div class="mui-content mui-scroll-wrapper">
+	      
+	        <!-- 主界面具体展示内容 -->
+	        <div class="mui-content">
+			    <div style="position: absolute; top: 100px; left: 0; right: 0; bottom: 0; width: 900px; height: 700px; margin: auto; zoom:1.3">
+				  	<div style="margin: 0 auto; width: 100%" id="plotPlane"></div>
+			
+				    <!--<div style="position: relative; top: 0px;width:100%;height:auto;left: 0;overflow: scroll;-webkit-box-shadow: 0 1px 6px #ccc;box-shadow: 0 1px 6px #ccc;">
+				    	<div id="pretty" style="position:relative; width:auto;float:left;display: inline;"></div>						
+						<div id="pretty0" style="position: relative;width:auto;float:left;display: inline;"></div>						
+						<div id="pretty1" style="position: relative; width:auto;float:left;display: inline;"></div>
+						<div id="pretty2" style="position: relative; width:auto;float:left;display: inline;"></div>
+						<div id="pretty3" style="position: relative; width:auto;float:left;display: inline;"></div>
+						<div id="pretty4" style="position: relative; width:auto;float:left;display: inline;"></div>
+						<div id="pretty5" style="position: relative; width:auto;float:left;display: inline;"></div>
+						<div id="pretty6" style="position: relative; width:auto;float:left;display: inline;"></div>
+						<div id="pretty7" style="position: relative; width:auto;float:left;display: inline;"></div>
+						<div id="pretty8" style="position: relative; width:auto;float:left;display: inline;"></div>
+						<div id="pretty9" style="position: relative; width:auto;float:left;display: inline;"></div>
+				    </div>-->
+				    <div style="height:25% !important;overflow: scroll !important;-webkit-box-shadow: 0 1px 6px #ccc;box-shadow: 0 1px 6px #ccc;">
+						<ul class="mui-table-view" id="colsList" >
+						 	
+						</ul>
+					</div>
+				</div>
+			</div>
+	      
+	    </div>  
+	  </div>
+	</div>
+	
+	
+	
+</body>
+</html>

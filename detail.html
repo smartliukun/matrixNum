@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+    <title></title>
+    <script src="js/mui.min.js"></script>
+    <script src="js/math.js"></script>    
+    <link href="css/mui.min.css" rel="stylesheet"/>
+    <script type="text/javascript" async="async" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    <script type="text/javascript" charset="UTF-8">
+    	parenthesis = 'keep',
+		implicit = 'hide';
+		//全局数字精度
+		var configPrec = null;			
+		
+      	mui.init({
+			swipeBack:true //启用右滑关闭功能
+		});
+		
+		mui.plusReady(function() {
+		var self = plus.webview.currentWebview();
+	
+		var matrix = JSON.parse(self.postMatrix, math.json.reviver);
+		var bVector =JSON.parse(self.bMatrix, math.json.reviver);
+		configPrec = self.configPrec;	
+		
+		MathJax.Hub.Config({			
+			displayAlign: "left",
+			displayIndent: "1em"		
+		});	
+	
+			
+		initOrgin(matrix);
+		initTransp(matrix);
+		initInverse(matrix);
+		initDet(matrix);
+		initTrace(matrix)
+		initLupDiv(matrix);
+		initEqua(matrix,bVector);
+		initSolve(matrix,bVector);
+		initSolveDetail(matrix,bVector);
+		
+		MathJax.Hub.Queue(['Typeset', MathJax.Hub]);
+		
+		});
+				
+		
+		function initOrgin(matrix)
+		{
+			var orginDiv=document.getElementById("prettyOrignDiv");
+			
+			var exprValue = math.format(matrix,configPrec);	
+			
+			var texStr=math.parse(exprValue).toTex({parenthesis: parenthesis});	
+			
+			showPrettyExpression(texStr,orginDiv);
+		}
+		
+		function initTransp(matrix)
+		{			
+			var divDom=document.getElementById("transpDiv");
+			
+			var exprValue = math.format(math.transpose(matrix),configPrec );	
+			
+			var texStr=math.parse(exprValue).toTex({parenthesis: parenthesis});	
+			
+			showPrettyExpression(texStr,divDom);
+		}
+		
+		function initInverse(matrix)
+		{			
+			var divDom=document.getElementById("inverseDiv");
+			
+			var exprValue = math.format(math.inv(matrix),configPrec);	
+			
+			var texStr=math.parse(exprValue).toTex({parenthesis: parenthesis});	
+			
+			showPrettyExpression(texStr,divDom);
+		}
+		
+		function initDet(matrix)
+		{			
+			var divDom=document.getElementById("detDiv");
+			
+			var exprValue = math.format(math.det(matrix),configPrec);	
+			
+			var texStr=math.parse(exprValue).toTex({parenthesis: parenthesis});	
+			
+			showPrettyExpression(texStr,divDom);
+		}
+		
+		function initTrace(matrix)
+		{			
+			var divDom=document.getElementById("traceDiv");
+			
+			var exprValue = math.format(math.trace(matrix),configPrec);	
+			
+			var texStr=math.parse(exprValue).toTex({parenthesis: parenthesis});	
+			
+			showPrettyExpression(texStr,divDom);
+		}
+		
+		function matrixToArray(matrixObj) {
+			var arr = new Array();
+		
+			matrixObj.forEach(function(value, index, matrix) {
+				arr.push(value);
+			});
+		
+			return arr;
+		}
+		
+		//var m = [[2, 1], [1, 4]];
+		//var r = math.lup();
+		// r = {
+		//   L: [[1, 0], [0.5, 1]],
+		//   U: [[2, 1], [0, 3.5]],
+		//   p: [0, 1]
+		// }
+		/**
+		 * 矩阵分解PA=LU
+		 * @param {Object} matrix
+		 */
+		function initLupDiv(matrix)
+		{
+			var divDom=document.getElementById("lupDiv");
+			
+			var r = math.lup(matrix);	
+			console.log(JSON.stringify(r));			
+		
+			var cols = matrix.size()[1];
+			var eyeMatrix=math.eye(cols);
+			var permMatrix=new Array();
+			
+			for(var i=0;i<r.p.length;i++)
+				permMatrix.push(matrixToArray(math.subset(eyeMatrix,math.index(r.p[i], math.range(0,cols)))));			
+			
+			var tempStr=math.parse(math.format(permMatrix,configPrec )).toTex({parenthesis: parenthesis});	
+			tempStr += math.parse(math.format(matrix,configPrec )).toTex({parenthesis: parenthesis});
+			tempStr +="{=}"+ math.parse(math.format(r.L,configPrec )).toTex({parenthesis: parenthesis});
+			tempStr += math.parse(math.format(r.U,configPrec )).toTex({parenthesis: parenthesis});			
+			
+			showPrettyExpression(tempStr,divDom);
+		}
+		
+		function initEqua(matrix,bVector)
+		{
+			var divDom=document.getElementById("equaDiv");
+			var rows=matrix.size()[1];
+			
+			var xArr=getXArr(rows);
+			
+			var tempStr=math.parse(math.format(matrix,configPrec )).toTex({parenthesis: parenthesis});
+			tempStr+=math.parse(math.format(xArr,configPrec ).replace(/\"/g,'')).toTex({parenthesis: parenthesis});
+			tempStr+= "{=}"+ math.parse(math.format(bVector,configPrec )).toTex({parenthesis: parenthesis});
+			
+			showPrettyExpression(tempStr,divDom);
+		}
+		
+		/**
+		 * 根据行数获取 ["x1","x2",..."xn"]
+		 * @param {Object} rows
+		 */
+		function getXArr(rows)
+		{
+			var xArr=new Array();
+			for(var i=1;i<=rows;i++)
+				xArr.push("x"+i);
+			
+			xArr=math.matrix(xArr);
+			xArr=math.transpose(xArr);
+			
+			return xArr;
+		}
+		
+		function initSolve(matrix,bVector)
+		{
+			var divDom=document.getElementById("solveDiv");
+			
+			var x = math.lusolve(matrix, bVector);  
+			
+			var xArr=getXArr(matrix.size()[0]);
+			
+			var tempStr = math.parse(math.format(xArr,configPrec).replace(/\"/g,'')).toTex({parenthesis: parenthesis});
+			
+			tempStr += "="+ math.parse(math.format(x,configPrec)).toTex({parenthesis: parenthesis});
+			
+			showPrettyExpression(tempStr,divDom);
+		}
+		
+		function initSolveDetail(matrix,bVector)
+		{			
+		 	//PAx=Pb
+	        //LUx=Pb
+	        //Ux=(L^-1)Pb
+	        //Ux=new_b
+	        
+	        var divDom1=document.getElementById("solveDetailDiv1");
+	        var divDom2=document.getElementById("solveDetailDiv2");
+	        var divDom3=document.getElementById("solveDetailDiv3");
+	        var divDom4=document.getElementById("solveDetailDiv4");
+	        var xArr=getXArr(matrix.size()[0]);
+	        var r = math.lup(matrix);
+		
+			var cols = matrix.size()[1];
+			var eyeMatrix=math.eye(cols);
+			var permMatrix=new Array();
+			
+			for(var i=0;i<r.p.length;i++)
+				permMatrix.push(matrixToArray(math.subset(eyeMatrix,math.index(r.p[i], math.range(0,cols)))));			
+			
+			var tempStr1=math.parse(math.format(permMatrix,configPrec)).toTex({parenthesis: parenthesis});	
+			tempStr1 += math.parse(math.format(matrix,configPrec)).toTex({parenthesis: parenthesis});
+			tempStr1 += math.parse(math.format(xArr,configPrec).replace(/\"/g,'')).toTex({parenthesis: parenthesis});
+			tempStr1 += "{=}"+ math.parse(math.format(permMatrix,configPrec)).toTex({parenthesis: parenthesis});
+			tempStr1 += math.parse(math.format(bVector,configPrec)).toTex({parenthesis: parenthesis});
+			
+			var tempStr2= math.parse(math.format(r.L,configPrec)).toTex({parenthesis: parenthesis});
+			tempStr2 += math.parse(math.format(r.U,configPrec)).toTex({parenthesis: parenthesis});			
+	        tempStr2 += math.parse(math.format(xArr,configPrec).replace(/\"/g,'')).toTex({parenthesis: parenthesis});
+	        tempStr2 += "{=}"+ math.parse(math.format(permMatrix,configPrec)).toTex({parenthesis: parenthesis});
+			tempStr2 += math.parse(math.format(bVector,configPrec)).toTex({parenthesis: parenthesis});
+			
+			var tempStr3= math.parse(math.format(r.U,configPrec)).toTex({parenthesis: parenthesis});
+			tempStr3 += math.parse(math.format(xArr,configPrec).replace(/\"/g,'')).toTex({parenthesis: parenthesis});
+	        tempStr3 += "{=}" + math.parse(math.format(math.inv(r.L),configPrec)).toTex({parenthesis: parenthesis});
+	        tempStr3 += math.parse(math.format(permMatrix,configPrec)).toTex({parenthesis: parenthesis});
+	        tempStr3 += math.parse(math.format(bVector,configPrec)).toTex({parenthesis: parenthesis});
+	        
+	        var tempStr4= math.parse(math.format(r.U,configPrec)).toTex({parenthesis: parenthesis});
+			tempStr4 += math.parse(math.format(xArr,configPrec).replace(/\"/g,'')).toTex({parenthesis: parenthesis});
+	        var new_b= math.multiply(math.inv(r.L),math.multiply(permMatrix,bVector));
+	        tempStr4 += "{=}" + math.parse(math.format(new_b,configPrec)).toTex({parenthesis: parenthesis});
+			
+			console.log(tempStr4);
+			showPrettyExpression(tempStr1,divDom1);
+			showPrettyExpression(tempStr2,divDom2);
+			showPrettyExpression(tempStr3,divDom3);
+			showPrettyExpression(tempStr4,divDom4);
+		}
+	
+		function showDetailDiv()
+		{
+			document.getElementById("solveDetailDiv1").style.display="";
+	        document.getElementById("solveDetailDiv2").style.display="";
+	        document.getElementById("solveDetailDiv3").style.display="";
+	        document.getElementById("solveDetailDiv4").style.display="";
+		}
+		
+		function showPrettyExpression(texStr,divDom)
+		{	
+			divDom.innerHTML = '$$' + texStr + '$$';			
+		}
+		
+    </script>
+</head>
+<body>
+	<header class="mui-bar mui-bar-nav">
+		    <a class="mui-action-back mui-icon mui-icon-left-nav mui-pull-left"></a>
+		    <h1 class="mui-title">矩阵摘要</h1>
+		</header>
+		<div class="mui-content">
+		    <ul class="mui-table-view mui-table-view-striped mui-table-view-condensed">
+		        <li class="mui-table-view-cell">
+		            <div class="mui-table">
+		                <div class="mui-table-cell mui-col-xs-10">
+		                    
+		                    <h5 id="orginName">A</h5>
+		                    <div id="prettyOrignDiv">
+		                    	
+		                    </div>
+		                </div>
+		                
+		            </div>
+		        </li>
+		        <li class="mui-table-view-cell">
+		            <div class="mui-table">
+		                <div class="mui-table-cell mui-col-xs-10">
+		                    
+		                    <h5 id="transpName">A<sup>T</sup></h5>
+		                    <div id="transpDiv">
+		                    	
+		                    </div>
+		                </div>
+		                
+		            </div>
+		        </li>
+		        <li class="mui-table-view-cell">
+		           <div class="mui-table">
+		                <div class="mui-table-cell mui-col-xs-10">
+		                    
+		                    <h5 id="inverseName">A<sup>-1</sup></h5>
+		                    <div id="inverseDiv">
+		                    	
+		                    </div>
+		                </div>
+		                
+		            </div>
+		        </li>
+		        <li class="mui-table-view-cell">
+		            <div class="mui-table">
+		                <div class="mui-table-cell mui-col-xs-10">
+		                    
+		                    <h5 id="detName">det(A)</h5>
+		                    <div id="detDiv">
+		                    	
+		                    </div>
+		                </div>		                
+		            </div>
+		        </li>
+		        <li class="mui-table-view-cell" style="overflow-x: scroll;">
+		           <div class="mui-table">
+		                <div class="mui-table-cell mui-col-xs-10">
+		                    
+		                    <h5 id="lupName">PA=LU</h5>
+		                    <div id="lupDiv">
+		                    	
+		                    </div>
+		                </div>
+		                
+		            </div>
+		        </li>
+		        <li class="mui-table-view-cell">
+		            <div class="mui-table">
+		                <div class="mui-table-cell mui-col-xs-10">
+		                    
+		                    <h5 id="eigeName">trace</h5>
+		                    <div id="traceDiv">
+		                    	
+		                    </div>
+		                </div>
+		                
+		            </div>
+		        </li>
+		        <li class="mui-table-view-cell">
+		            <div class="mui-table">
+		                <div class="mui-table-cell mui-col-xs-10">		                    
+		                    <h5 id="equaName">Ax=b</h5>
+		                    <div id="equaDiv">		                    	
+		                    </div>
+		                </div>		                
+		            </div>
+		        </li>		       
+		        <li class="mui-table-view-cell" style="overflow-x: scroll;">
+		            <div class="mui-table">
+		                <div class="mui-table-cell mui-col-xs-10" onclick="showDetailDiv()">
+		                    <h5 id="solveDetailName">Ax=b</h5>
+		                    <h5 id="solveDetailName">PAx=Pb</h5>
+		                    <h5 id="solveDetailName">LUx=Pb</h5>
+		                    <h5 id="solveDetailName">Ux=L<sup>-1</sup>Pb</h5>
+		                    <h5 id="solveDetailName">用回带法(backward substitution)求解x,点击显示</h5>
+		                    <div id="solveDetailDiv1" style="display: none;">
+		                    	
+		                    </div>
+		                    <div id="solveDetailDiv2" style="display: none;">
+		                    	
+		                    </div>
+		                    <div id="solveDetailDiv3" style="display: none;">
+		                    	
+		                    </div>
+		                    <div id="solveDetailDiv4" style="display: none;">
+		                    	
+		                    </div>
+		                </div>
+		                
+		            </div>
+		        </li>
+		         <li class="mui-table-view-cell">
+		            <div class="mui-table">
+		                <div class="mui-table-cell mui-col-xs-10">
+		                    
+		                    <h5 id="solveName">x=?</h5>
+		                    <div id="solveDiv">
+		                    	
+		                    </div>
+		                </div>
+		                
+		            </div>
+		        </li>
+		    </ul>
+		</div>
+	</body>
+	
+	
+</body>
+</html>

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+    <title></title>
+    <script src="js/mui.min.js"></script>
+    <link href="css/mui.min.css" rel="stylesheet"/>
+    <link href="css/parcoords.css" rel="stylesheet"  />
+    <script type="text/javascript" async="async" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    <script src="js/math.js"></script>
+    <script type="text/javascript" src="js/sylvester.js" ></script>
+    <script type="text/javascript" src="js/d3_.min.js" ></script>
+    <script type="text/javascript" src="js/d3.parcoords.js" ></script>
+    <script type="text/javascript" charset="UTF-8">
+	    //当前页面处理矩阵对象
+		/**
+		 * matrix 矩阵对象
+		 * plotVectors 矩阵的各个向量
+		 * isColVector 是否是列向量
+		 */
+		var matrixCom={};
+		
+		var configPrec = null;
+		
+		var prettyListId="colsList";
+		
+		var isColVector=true;
+	
+      	mui.init({beforeback:function(){
+      		plus.screen.lockOrientation("portrait");
+      	}});
+      	
+      	mui.plusReady(function() {
+      		
+      	
+      		
+      		plus.screen.lockOrientation("landscape");
+      		
+      		var self = plus.webview.currentWebview();
+
+			var matrixObj = JSON.parse(self.postMatrix, math.json.reviver);
+			
+			configPrec = self.configPrec;
+			
+			matrixCom.matrix=matrixObj;				
+			
+			mui.later(function(){
+      			render(getVectorArr(matrixCom.matrix,isColVector),'#high_dim');
+      			
+      			initExperssion(matrixCom.matrix,isColVector);
+      		},500);;
+      	});
+      	
+   
+
+	/**
+	 * 
+	 * @param {Object} matrixObj
+	 * @param {Object} isColVector
+	 * 
+	 * var b = [[0, 1], [2, 3]];
+	 * math.subset(b, math.index(1, [0, 1]));        // Array, [2, 3]
+	 * math.subset(b, math.index([0, 1], 0));        // Matrix, [[0], [2]]
+	 */
+	function getVectorArr(matrixObj, isColVector,showIndexArr) {
+
+	var rows = matrixObj.size()[0];
+	var cols = matrixObj.size()[1];
+	var vectors = new Array();
+	
+	
+	
+	if (isColVector) {
+		
+		if(showIndexArr!=null)
+		{
+			for(i in showIndexArr)
+				vectors.push(matrixToArray(math.subset(matrixObj, math.index(math.range(0, rows), showIndexArr[i]))));
+		}
+		else		
+			for (var i = 0; i < cols; i++)
+				vectors.push(matrixToArray(math.subset(matrixObj, math.index(math.range(0, rows), i))));
+
+	} else {
+		
+		if(showIndexArr!=null)
+		{
+			for(i in showIndexArr)
+				vectors.push(matrixToArray(math.subset(matrixObj, math.index(showIndexArr[i], math.range(0, cols)))));
+		}
+		else
+			for (var i = 0; i < rows; i++)
+				vectors.push(matrixToArray(math.subset(matrixObj, math.index(i, math.range(0, cols)))));
+	}
+
+	return vectors;
+}
+	
+	function matrixToArray(matrixObj) {
+		var arr = new Array();
+	
+		matrixObj.forEach(function(value, index, matrix) {
+			arr.push(value);
+		});
+	
+		return arr;
+	}
+	var parcoordRef=null;
+	function render(data, selector) {
+		parcoordRef=d3.parcoords()(selector);
+	  	parcoordRef	  	
+	    .data(data)
+	    .alpha(0.6)
+	    .render()	    
+	    .ticks(2)
+	    .createAxes();
+	};
+	
+	function refreshRender(data, selector){
+		
+		parcoordRef.data(data).render()
+	}
+	function openNav()
+	{
+		mui('.mui-off-canvas-wrap').offCanvas('show');
+	}
+	function closeNav () {
+		mui('.mui-off-canvas-wrap').offCanvas('close');
+	}
+	
+	function updateRender()
+	{
+		var showIndexArr=new Array();
+		
+		mui('.vCheckboxClass').each(function(i){			
+			if(this.checked)
+				showIndexArr.push(i);
+		});
+		
+		refreshRender(getVectorArr(matrixCom.matrix,isColVector,showIndexArr),'#high_dim');
+		
+		
+	}
+
+function initExperssion(matrixObj,isColVector) {
+
+	parenthesis = 'keep',
+	implicit = 'hide';
+	prettyList = document.getElementById(prettyListId);
+	prettyList.innerHTML='';
+	var rows = matrixObj.size()[0];
+	var cols = matrixObj.size()[1];
+	var vectorsLen=0;
+	if(isColVector)
+		vectorsLen=cols;
+	else
+		vectorsLen=rows;
+		
+	for(var i=0;i<vectorsLen;i++)
+	{
+		var vector=null;
+		if(isColVector)
+			vector=math.transpose(math.subset(matrixObj, math.index(math.range(0, rows), i)));
+		else
+			vector=math.subset(matrixObj, math.index(i, math.range(0, cols) ));
+		
+		var prefix;
+		if(isColVector)
+			prefix='{v}_'+i+'^T=';
+		else
+			prefix='{v}_'+i+'=';
+			
+		var contents=math.format(vector,configPrec);
+		var tempStr=math.parse(contents).toTex({parenthesis: parenthesis})
+		var tempTeXStr=prefix+tempStr;
+		//console.log(tempTeXStr);
+		
+		
+		prettyList.innerHTML += '<li class="mui-table-view-cell mui-checkbox mui-left" onclick="updateRender();">'
+								+'<input name="checkbox" type="checkbox" checked class="vCheckboxClass"><div>'+'$$' + tempTeXStr + '$$'+'</div></li>';
+	}
+		
+
+  MathJax.Hub.Queue(['Typeset', MathJax.Hub]);
+  
+    //console.log('LaTeX expression:', texStr);
+
+}
+    </script>
+    
+</head>
+<body><div class="mui-off-canvas-wrap mui-slide-in" >
+	  <!-- 菜单容器 -->
+	  <aside class="mui-off-canvas-right" style="width:20%">
+	    <div class="mui-scroll-wrapper">
+	      <div class="mui-scroll" style="transform: translate3d(0px, 0px, 0px) translateZ(0px);">
+	        <!-- 菜单具体展示内容 -->
+	         <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-danger mui-btn-block" onclick="closeNav()">关闭菜单</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="resetPlot();closeNav();">图像重置</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showVec(true);closeNav();">列向量</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showVec(false);closeNav();">行向量</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showSpace(true);closeNav();">列空间</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showSpace(false);closeNav();">行空间</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showNullSpace();closeNav();">零空间</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showLeftSpace();closeNav();">左零空间</button></p>
+	      </div>
+	    </div>
+	  </aside>
+	  <!-- 主页面容器 -->
+	  <div class="mui-inner-wrap">
+	    <!-- 主页面标题 -->
+	    <header class="mui-bar mui-bar-nav" style="-webkit-box-shadow: 0 1px 6px #ccc;box-shadow: 0 1px 6px #ccc;">
+		    <a class="mui-action-back mui-icon mui-icon-left-nav mui-pull-left"></a>
+		    <h1 class="mui-title">平行坐标图</h1>
+		    <button id="editBtn" class="mui-btn mui-btn-blue mui-btn-link mui-pull-right" onclick="openNav()">更多</button>
+		</header>
+	    <div class="mui-content mui-scroll-wrapper">
+	      
+	        <!-- 主界面具体展示内容 -->
+	        <div class="mui-content" >
+			   
+		  		<div id="high_dim" class="parcoords" style="width:100%;height:200px;"></div>
+		  		<div style="height:120px !important;overflow: scroll !important;-webkit-box-shadow: 0 1px 6px #ccc;box-shadow: 0 1px 6px #ccc;">
+					<ul class="mui-table-view" id="colsList" >
+					 	
+					</ul>
+				</div>
+			</div>
+	      
+	    </div>  
+	  </div>
+	</div>
+
+</body>
+</html>

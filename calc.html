@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+    <title></title>
+    <script src="js/mui.min.js"></script>
+    <script src="js/math.js"></script>
+    <script type="text/javascript" async="async" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    <script type="text/javascript" async="async" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    
+    <link href="css/mui.min.css" rel="stylesheet"/>
+    <script type="text/javascript" charset="UTF-8">
+    
+    	var iMatrixArr=null;
+    	
+    	var prettyPre="p_";
+    	
+    	var matrixClass="matrixClass";
+    	
+    	var dotClass="dotClass";
+    	
+    	var multiClass="multiClass";
+    	
+    	var powerClass="powerClass";
+    	
+    	var transpClass="transpClass";
+    	
+    	var inverseClass="inverseClass";
+    	
+    	var leftB='(';
+		var rightB=')';
+		
+		var leftBm='[';
+		var rightBm=']';
+    
+      	mui.init({beforeback:function(){
+      		plus.screen.lockOrientation("portrait");
+      	}});
+      	
+      	mui.plusReady(function() {
+      		plus.screen.lockOrientation("landscape");
+      		
+			var self = plus.webview.currentWebview();
+			
+			iMatrixArr = JSON.parse(self.postMatrixArr, math.json.reviver);
+			
+			initVarExpression(iMatrixArr);
+			
+			document.getElementById("powerBtn").addEventListener('tap', powerMatrix);
+			
+		});		
+				
+		function reloadPrettyDiv(parentId,varNameArr)
+		{
+			var parentDiv=document.getElementById(parentId);
+			parentDiv.innerHTML="";
+			var htmlStr="";
+			for(var i=0;i<varNameArr.length;i++)
+			{
+				htmlStr+="<div id='"+ prettyPre + varNameArr[i]+"' class='prettyExp' onclick='inputMatrix(\""+varNameArr[i]+"\")'></div>";
+			}
+			console.log(htmlStr);
+			parentDiv.innerHTML=htmlStr;
+		}
+		
+		function initVarExpression(iMatArr)
+		{
+			parenthesis = 'keep',
+			implicit = 'hide';
+	
+			var nameArr=new Array();
+			for(var i=0;i<iMatArr.length;i++)
+				nameArr.push(iMatArr[i].name);
+				
+			reloadPrettyDiv("symbolDiv",nameArr);
+				
+			for(var i=0;i<iMatArr.length;i++)
+			{
+				var iObj=iMatArr[i];
+				
+				var prefix="{"+iObj.name+"}=";
+				
+				var exprValue = math.format(iObj.matrix);	
+				
+				var texStr=math.parse(exprValue).toTex({parenthesis: parenthesis});
+				
+				var tempTeXStr=prefix+texStr;
+				
+				tempPretty = document.getElementById(prettyPre+iObj.name);
+				
+				tempPretty.innerHTML = '$$' + tempTeXStr + '$$';
+				
+			}
+			MathJax.Hub.Queue(['Typeset', MathJax.Hub]);
+		}
+		
+		function openNav()
+		{
+			mui('.mui-off-canvas-wrap').offCanvas('show');
+		}
+		
+		function closeNav () {
+			closeNum();
+			mui('.mui-off-canvas-wrap').offCanvas('close');
+		}	
+		
+		function openNum() {
+			document.getElementById('inputBtnDiv').style.width="50%";
+			//document.getElementsByClassName('calc-btn').className="mui-btn calc-btn-open";
+			
+			mui(".calc-btn").each(function () {
+				this.className = this.className.replace("calc-btn","calc-btn-open");				
+			});
+		}
+		
+		function closeNum() {
+			document.getElementById('inputBtnDiv').style.width="25%";
+			mui(".calc-btn-open").each(function () {
+				this.className = this.className.replace("calc-btn-open","calc-btn");		
+			});
+		}
+		
+		
+		
+		
+		function inputStr(str,className){	
+			if(className!=null && className != undefined)
+				str="<span class='"+ className +"'>"+str+"</span>";
+			else
+				str="<span>"+str+"</span>";
+			document.getElementById("expCursor").insertAdjacentHTML('beforebegin', str);
+		}
+			
+		function inputMatrix(matrixName)
+		{
+			inputStr(matrixName,matrixClass);			
+		}
+	
+		
+		function backSpace()
+		{
+			var expCursorDom=document.getElementById("expCursor");
+			
+			expCursorDom.parentNode.removeChild(expCursorDom.previousElementSibling);			
+		}
+		function calcMatrix()
+		{
+			var expCursorDom=document.getElementById("expCursor");
+			
+			var expStr="";			
+			
+			Array.prototype.filter.call(expCursorDom.parentNode.children, function(child){
+				
+				
+			  	if(child !== expCursorDom)
+			  	{
+			  		if(child.classList.contains(matrixClass))
+			  			expStr += getMatrixFormatStr(child.innerText);
+			  		else if(child.classList.contains(multiClass))
+			  			expStr += '*';
+			  		else if(child.classList.contains(powerClass))
+			  			expStr += '^'+child.innerText;
+			  		else if(child.classList.contains(transpClass))
+			  			expStr += "\'";
+		  			else if(child.classList.contains(inverseClass))
+			  			expStr = insertFun(expStr,'inv');
+			  		else if(child.classList.contains(dotClass))
+			  			expStr += '.*';
+			  		else
+			  			expStr += child.innerText;
+			  		return child;
+			  	}
+			  	
+			  	
+			});
+			
+			console.log(expStr);
+			 
+			var resultStr=math.format(math.eval(expStr),5);
+			parenthesis = 'keep',
+      		implicit = 'hide';
+      		var tempStr=math.parse(resultStr).toTex({parenthesis: parenthesis});
+			document.getElementById('resultDiv').innerHTML = '$$' + tempStr + '$$';
+				
+			
+			MathJax.Hub.Queue(['Typeset', MathJax.Hub]);
+			 
+		}
+		
+		function getMatrixFormatStr(matrixName)
+		{
+			for(var i=0;i<iMatrixArr.length;i++)
+				if(iMatrixArr[i].name==matrixName)
+				{
+					touchMatrix=iMatrixArr[i];
+					break;
+				}
+				
+			return touchMatrix.matrix.format();
+		}
+		
+		function powerMatrix(e)
+		{
+			e.detail.gesture.preventDefault(); //修复iOS 8.x平台存在的bug，使用plus.nativeUI.prompt会造成输入法闪一下又没了
+				var btnArray = ['取消', '确定'];
+				mui.prompt('请输入正整数：', '1', '矩阵幂运算', btnArray, function(e) {
+					if (e.index == 1 && math.isInteger(e.value) && math.isPositive(e.value)) {
+						
+						inputStr('<sup>' + e.value + '</sup>',powerClass);
+						
+					} else {
+						mui.toast('没有输入有效的数字');
+					}
+				})
+		}
+		
+		function insertFun(inputStr,funName)
+		{
+			if(inputStr.length==0)
+				return inputStr;
+			
+			var startIndex=0;
+			if(inputStr.charAt(inputStr.length-1)==rightB)
+				startIndex=getLeftBracIndex(inputStr,leftB,rightB);
+			else if(inputStr.charAt(inputStr.length-1)==rightBm)
+				startIndex=getLeftBracIndex(inputStr,leftBm,rightBm);
+				
+			if(startIndex>=0)
+			{
+				var preStr=inputStr.substring(0,startIndex)
+				
+				var nextStr=inputStr.substring(startIndex,inputStr.length);
+				// eg.   inv + ( + [[-1, 2], [3, 1]] + )
+				inputStr = preStr + funName +leftB + nextStr + rightB;
+			}
+			
+			return inputStr;
+			
+		}
+		
+		function getLeftBracIndex(inputStr,leftSy,rightSy)
+		{
+			if(inputStr.length==0)
+				return;
+			
+			
+			var leftCount=0;
+			var rigthCount=0;
+			var index = -1 ;
+			for(var i=inputStr.length-1;i>=0;i--)
+			{
+				if(inputStr[i]==rightSy)
+					rigthCount++;
+				else if(inputStr[i]==leftSy)
+					leftCount++;
+					
+				if(leftCount==rigthCount)
+					return i;
+			}
+			return index;
+		}
+		
+		function transpMatrix()
+		{
+			inputStr('<sup>T</sup>',transpClass);
+		}
+		
+		function inverseMatrix()
+		{
+			inputStr('<sup>-1</sup>',inverseClass);
+			console.log(inverseClass);
+		}
+		
+    </script>
+    <style>
+    	.calc-btn {width:24%;font-size: large;}
+    	.calc-btn-open {width:12%;font-size: large;}
+    	.prettyExp{		display: inline;float:left}
+    </style>
+</head>
+<body>
+	<div class="mui-off-canvas-wrap mui-slide-in" id="mainWrap">
+	  <!-- 菜单容器 -->
+	  <aside class="mui-off-canvas-right" style="width:25%;" id="inputBtnDiv">
+	    <div class="mui-scroll-wrapper">
+	      <div class="mui-scroll" style="transform: translate3d(0px, 0px, 0px) translateZ(0px);width:200%;overflow-x: hidden;" >
+	        <!-- 菜单具体展示内容 -->
+	        <p style="margin: 10px 15px;">
+	        	<button type="button" class="mui-btn calc-btn mui-btn-danger" onclick="closeNav()">关闭</button>
+	        	<button type="button" class="mui-btn calc-btn" onclick="openNum()">Num</button>
+	        	<button type="button" class="mui-btn calc-btn" onclick="closeNum()">»</button>
+	        	<button type="button" class="mui-btn calc-btn" onclick="inputStr(0)">0</button>
+	        </p>
+	        <p style="margin: 10px 15px;">
+	        	<button type="button" class="mui-btn calc-btn" onclick="inputStr('+');">+</button>
+	        	<button type="button" class="mui-btn calc-btn" onclick="inputStr('-');">-</button>
+	        	<button type="button" class="mui-btn calc-btn" onclick="inputStr(1)">1</button>
+	        	<button type="button" class="mui-btn calc-btn" onclick="inputStr(2)">2</button>
+	        </p>
+			<p style="margin: 10px 15px;">
+				<button type="button" class="mui-btn calc-btn" onclick="inputStr('×',multiClass);">×</button>
+				<button type="button" class="mui-btn  calc-btn" onclick="inputStr('·',dotClass);">·</button>
+				<button type="button" class="mui-btn calc-btn" onclick="inputStr(3)">3</button>
+	        	<button type="button" class="mui-btn calc-btn" onclick="inputStr(4)">4</button>
+			</p>
+			<p style="margin: 10px 15px;">
+				<button type="button" class="mui-btn calc-btn" onclick="transpMatrix()">A<sup>T</sup></button>
+				<button type="button" class="mui-btn  calc-btn" onclick="inverseMatrix()">A<sup>-1</sup></button>
+				<button type="button" class="mui-btn calc-btn" onclick="inputStr(5)">5</button>
+	        	<button type="button" class="mui-btn calc-btn" onclick="inputStr(6)">6</button>
+				</p>
+			<p style="margin: 10px 15px;">
+				<button type="button" class="mui-btn calc-btn" id="powerBtn">A<sup>x</sup></button>
+				<button type="button" class="mui-btn  calc-btn" onclick="inputStr('det(');">det(A)</button>
+				<button type="button" class="mui-btn calc-btn" onclick="inputStr(7)">7</button>
+	        	<button type="button" class="mui-btn calc-btn" onclick="inputStr(8)">8</button>
+			</p>
+			<p style="margin: 10px 15px;">
+				<button type="button" class="mui-btn calc-btn" onclick="inputStr('(');">(</button>
+				<button type="button" class="mui-btn  calc-btn" onclick="inputStr(')');">)</button>
+				<button type="button" class="mui-btn calc-btn" onclick="inputStr(9)">9</button>
+	        	<button type="button" class="mui-btn calc-btn" onclick="inputStr('e')">e</button>
+			</p>
+			<p style="margin: 10px 15px;">
+				<button type="button" class="mui-btn calc-btn" onclick="backSpace()">←</button>
+				<button type="button" class="mui-btn calc-btn mui-btn-warning" onclick="calcMatrix()">=</button>
+			</p>			
+	      </div>
+	    </div>
+	  </aside>
+	  <!-- 主页面容器 -->
+	  <div class="mui-inner-wrap" >
+	    <!-- 主页面标题 -->
+	    <header class="mui-bar mui-bar-nav">	   
+	      <a class="mui-action-back mui-icon mui-icon-left-nav mui-pull-left"></a>
+	      <h1 class="mui-title">计算器</h1>
+	      <button id="editBtn" class="mui-btn mui-btn-blue mui-btn-link mui-pull-right" onclick="openNav()">更多</button>
+	    </header>
+	    
+	    <div id="offCanvasContentScroll" class="mui-content mui-scroll-wrapper" style="overflow:scroll">
+	      <div class="mui-scroll" >
+	        <!-- 主界面具体展示内容 -->
+	        	<div id="expressText" readonly="readonly" >
+	        		<label id="expCursor">|</label>
+	        	</div>
+	        	<br/>
+	        	<div id="resultDiv" style="width: 30%;">
+	        		
+	        	</div>
+				<br/>
+				<div id="symbolDiv" style="overflow-x:scroll">
+					
+				</div>
+	      </div>
+	    </div>  
+	  </div>
+	</div>
+</body>
+</html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+    <title></title>
+    <link rel='stylesheet' href='css/common.css'>
+    <script src="js/mui.min.js"></script>
+    <script src="js/math.js"></script>
+    <script type="text/javascript" async="async" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+	<script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/three.js/r69/three.min.js"></script>
+  <script type="text/javascript" src="js/d3.min.js"></script>
+  <script type="text/javascript" src="js/elegans.js"></script>
+    <link href="css/mui.min.css" rel="stylesheet"/>
+    <script type="text/javascript" charset="UTF-8">
+    	var configPrec = null;
+    	var prettyListId= "colsList";
+    	
+      	mui.init();
+      	
+      	mui.plusReady(function() {
+      		
+  			var self = plus.webview.currentWebview();
+
+			var matrixObj = JSON.parse(self.postMatrix, math.json.reviver);
+			configPrec = self.configPrec;
+			var rows = matrixObj.size()[0];
+			var cols = matrixObj.size()[1];	
+      		var isColVector=false;
+      		
+      		if (rows == 3)
+				plotVectors = getVectorArr(matrixObj, isColVector=true);
+			else if (cols == 3)
+				plotVectors = getVectorArr(matrixObj, isColVector=false);
+				
+			initExperssion(matrixObj,isColVector);
+      		
+      		var axisMax=1;
+      		var color_scale = d3.scale.category20();
+      		var line=new Array();
+      		for(var i=0;i<plotVectors.length;i++)
+      		{
+      			var x_arr = [], y_arr = [], z_arr = [];
+      			
+      			x_arr.push(0);
+            	y_arr.push(0);
+            	z_arr.push(0);
+      			axisMax = math.max(Math.abs(plotVectors[i][0]),Math.abs(plotVectors[i][1]),Math.abs(plotVectors[i][2]),axisMax);
+      			x_arr.push(plotVectors[i][0]);
+            	y_arr.push(plotVectors[i][1]);
+            	z_arr.push(plotVectors[i][2]);
+            	console.log(x_arr);
+            	console.log(y_arr);
+            	console.log(z_arr);
+//          	
+            	var data = {x:x_arr, y:y_arr, z:z_arr};
+            	
+            	
+            	
+            	var tempLine = new Elegans.Line(data, {has_legend:false,name :"vector"+(i+1),thickness: 5, colors: [color_scale(i),color_scale(i)]});
+            	
+            	line.push(tempLine);
+      		}
+      		
+      		var stage = new Elegans.Stage(d3.select("#vis")[0][0], {
+      					 width:"400px", 
+      					 height:"400px",
+						 autorange: false,
+						 range: {x: [axisMax, 0], y: [axisMax, 0 ], z: [axisMax, 0]},
+						 space_mode: "wireframe",
+						 grid: true
+					       });
+      		
+			for(var i=0;i<line.length;i++)
+				stage.add(line[i]);
+			
+			stage.render();
+      	});
+      	
+      	
+/**
+ * 
+ * @param {Object} matrixObj
+ * @param {Object} isColVector
+ * 
+ * var b = [[0, 1], [2, 3]];
+ * math.subset(b, math.index(1, [0, 1]));        // Array, [2, 3]
+ * math.subset(b, math.index([0, 1], 0));        // Matrix, [[0], [2]]
+ */
+function getVectorArr(matrixObj, isColVector) {
+
+	var rows = matrixObj.size()[0];
+	var cols = matrixObj.size()[1];
+	var vectors = new Array();
+	if (isColVector) {
+		for (var i = 0; i < cols; i++)
+			vectors.push(matrixToArray(math.subset(matrixObj, math.index([0, 1,rows - 1], i))));
+
+	} else {
+		for (var i = 0; i < rows; i++)
+			vectors.push(matrixToArray(math.subset(matrixObj, math.index(i, [0, 1,cols - 1]))));
+	}
+
+	return vectors;
+}
+
+function matrixToArray(matrixObj) {
+	var arr = new Array();
+
+	matrixObj.forEach(function(value, index, matrix) {
+		arr.push(value);
+	});
+
+	return arr;
+}
+      	function initExperssion(matrix,isColVector) {
+	
+	MathJax.Hub.Config({			
+		displayAlign: "left",
+		displayIndent: "1em"		
+		});
+			
+
+	parenthesis = 'keep',
+	implicit = 'hide';
+	prettyList = document.getElementById(prettyListId);
+	prettyList.innerHTML='';
+	var rows = matrix.size()[0];
+	var cols = matrix.size()[1];
+	var vectorsLen=0;
+	if(isColVector)
+		vectorsLen=cols;
+	else
+		vectorsLen=rows;
+		
+	for(var i=0;i<vectorsLen;i++)
+	{
+		var vector=null;
+		if(isColVector)
+			vector=math.transpose(math.subset(matrix, math.index(math.range(0, rows), i)));
+		else
+			vector=math.subset(matrix, math.index(i, math.range(0, cols) ));
+		
+		var prefix;
+		if(isColVector)
+			prefix='{v}_'+i+'^T=';
+		else
+			prefix='{v}_'+i+'=';
+			
+		var contents=math.format(vector,configPrec);
+		var tempStr=math.parse(contents).toTex({parenthesis: parenthesis})
+		var tempTeXStr=prefix+tempStr;
+		
+		prettyList.innerHTML += '<li class="mui-table-view-cell mui-checkbox mui-left" onclick="updateRender();">'
+								+'<input name="checkbox" type="checkbox" checked class="vCheckboxClass"><div>'+'$$' + tempTeXStr + '$$'+'</div></li>';
+	
+	}
+	
+	console.log(prettyList.innerHTML);
+
+  	MathJax.Hub.Queue(['Typeset', MathJax.Hub]);
+
+}
+
+function updateRender()
+	{
+		var showIndexArr=new Array();
+		
+		mui('.vCheckboxClass').each(function(i){			
+			if(this.checked)
+				showIndexArr.push(i);
+		});
+		
+		//refreshRender(getVectorArr(matrixCom.matrix,isColVector,showIndexArr),'#high_dim');
+		
+		
+	}
+
+      	
+      	function openNav()
+		{
+			mui('.mui-off-canvas-wrap').offCanvas('show');
+		}
+		function closeNav () {
+			mui('.mui-off-canvas-wrap').offCanvas('close');
+		}
+    </script>
+</head>
+<body>
+
+	<div class="mui-off-canvas-wrap mui-slide-in">
+	  <!-- 菜单容器 -->
+	  <aside class="mui-off-canvas-right" style="width:40%">
+	    <div class="mui-scroll-wrapper">
+	      <div class="mui-scroll" style="transform: translate3d(0px, 0px, 0px) translateZ(0px);">
+	        <!-- 菜单具体展示内容 -->
+	         <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-danger mui-btn-block" onclick="closeNav()">关闭菜单</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="resetPlot();closeNav();">图像重置</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showVec(true);closeNav();">列向量</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showVec(false);closeNav();">行向量</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showSpace(true);closeNav();">列空间</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showSpace(false);closeNav();">行空间</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showNullSpace();closeNav();">零空间</button></p>
+	        <p style="margin: 10px 15px;"><button type="button" class="mui-btn mui-btn-block" onclick="showLeftSpace();closeNav();">左零空间</button></p>
+	      </div>
+	    </div>
+	  </aside>
+	  <!-- 主页面容器 -->
+	  <div class="mui-inner-wrap">
+	    <!-- 主页面标题 -->
+	    <header class="mui-bar mui-bar-nav" style="-webkit-box-shadow: 0 1px 6px #ccc;box-shadow: 0 1px 6px #ccc;">
+		    <a class="mui-action-back mui-icon mui-icon-left-nav mui-pull-left"></a>
+		    <h1 class="mui-title">3维图形映射</h1>
+		    <button id="editBtn" class="mui-btn mui-btn-blue mui-btn-link mui-pull-right" onclick="openNav()">更多</button>
+		</header>
+		<div id="offCanvasContentScroll" class="mui-content mui-scroll-wrapper" style="overflow: scroll;">
+		   <div style="height:550px !important;">
+		      
+		        <!-- 主界面具体展示内容 -->
+		       
+			   <div id="vis">
+				</div>
+				
+		      	
+		    </div>  
+	    	<div style="display:block;height:150 !important;overflow: scroll !important;-webkit-box-shadow: 0 1px 6px #ccc;box-shadow: 0 1px 6px #ccc;">
+					<ul class="mui-table-view" id="colsList" >
+					</ul>
+					
+			</div>
+		</div>
+	  </div>
+	</div>
+	
+	
+	
+</body>
+</html>
